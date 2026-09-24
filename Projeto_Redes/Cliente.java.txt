@@ -1,0 +1,76 @@
+import java.net.*;
+import java.io.*;
+import java.util.Scanner;
+
+public class Cliente {
+    public static void main(String[] args) {
+        Scanner teclado = new Scanner(System.in);
+
+        System.out.println("=========================================");
+        System.out.println("           BEM-VINDO AO CHAT             ");
+        System.out.println("=========================================");
+        System.out.print("➤ Digite o IP do servidor: ");
+        String ip = teclado.nextLine();
+
+        System.out.print("➤ Digite a porta do servidor: ");
+        int porta = Integer.parseInt(teclado.nextLine());
+
+        System.out.print("➤ Digite o seu nome de usuario: ");
+        String nomeUsuario = teclado.nextLine();
+
+        try {
+            Socket socket = new Socket(ip, porta);
+            PrintWriter out = new PrintWriter(socket.getOutputStream(), true);
+            BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+
+            out.println(nomeUsuario);
+            imprimirAjuda();
+
+            Thread threadLeitura = new Thread(new Runnable() {
+                @Override
+                public void run() {
+                    try {
+                        String mensagemServidor;
+                        while ((mensagemServidor = in.readLine()) != null) {
+                            System.out.println(mensagemServidor);
+                        }
+                    } catch (IOException e) {
+                        System.out.println("\n[!] Conexao encerrada pelo servidor.");
+                    }
+                }
+            });
+            threadLeitura.start();
+
+            String mensagemUsuario;
+            while (true) {
+                mensagemUsuario = teclado.nextLine();
+
+                if (mensagemUsuario.equals("/help")) {
+                    imprimirAjuda();
+                } else {
+                    out.println(mensagemUsuario);
+                }
+
+                if (mensagemUsuario.equals("/exit") || mensagemUsuario.equals("/quit")) {
+                    break;
+                }
+            }
+
+            socket.close();
+            teclado.close();
+            System.exit(0);
+
+        } catch (IOException e) {
+            System.out.println("\n[!] Erro ao conectar: " + e.getMessage());
+        }
+    }
+
+    private static void imprimirAjuda() {
+        System.out.println("\n================ COMANDOS ===============");
+        System.out.println(" /join #sala   -> Entra ou cria uma sala (ex: /join #geral)");
+        System.out.println(" /leave        -> Sai da sala atual");
+        System.out.println(" /help         -> Mostra este menu de ajuda");
+        System.out.println(" /exit         -> Desconecta e fecha o chat");
+        System.out.println("=========================================\n");
+    }
+}

@@ -1,0 +1,94 @@
+import java.net.*;
+import java.io.*;
+import java.util.*;
+
+public class ClienteHandler implements Runnable {
+    private Socket socket;
+    private PrintWriter out;
+    private BufferedReader in;
+    private String nomeUsuario;
+    private String salaAtual = null;
+
+    public ClienteHandler(Socket socket) {
+        this.socket = socket;
+    }
+
+    @Override
+    public void run() {
+        try {
+            in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+            out = new PrintWriter(socket.getOutputStream(), true);
+
+            nomeUsuario = in.readLine();
+            System.out.println(nomeUsuario + " entrou no servidor.");
+            out.println("Bem-vindo, " + nomeUsuario + "! Use /join #sala para entrar numa sala.");
+
+            String mensagem;
+            while ((mensagem = in.readLine()) != null) {
+                if (mensagem.startsWith("/join ")) {
+                    entrarNaSala(mensagem.split(" ")[1]);
+                } else if (mensagem.equals("/leave")) {
+                    sairDaSala();
+                } else if (mensagem.equals("/exit") || mensagem.equals("/quit")) {
+                    break;
+                } else {
+                    enviarMensagemParaSala(mensagem);
+                }
+            }
+        } catch (IOException e) {
+            System.out.println("Erro ou desconexao com " + nomeUsuario);
+        } finally {
+            sairDaSala();
+            try { socket.close(); } catch (IOException e) { }
+            System.out.println(nomeUsuario + " saiu do servidor.");
+        }
+    }
+
+    private synchronized void entrarNaSala(String novaSala) {
+        sairDaSala();
+        salaAtual = novaSala;
+        Servidor.salas.putIfAbsent(salaAtual, Collections.synchronizedSet(new HashSet<>()));
+        Servidor.salas.get(salaAtual).add(out);
+
+        out.println("Entrou na sala " + salaAtual);
+        enviarMensagemParaSala("--- " + nomeUsuario + " entrou na sala ---");
+    }
+
+    private synchronized void sairDaSala() {
+        if (salaAtual != null && Servidor.salas.containsKey(salaAtual)) {
+            Servidor.salas.get(salaAtual).remove(out);
+            enviarMensagemParaSala("--- " + nomeUsuario + " saiu da sala ---");
+            out.println("Saiu da sala " + salaAtual);
+            salaAtual = null;
+        }
+    }
+
+    private void enviarMensagemParaSala(String mensagem) {
+        if (salaAtual != null && Servidor.salas.containsKey(salaAtual)) {
+            String mensagemFormatada = "[" + nomeUsuario + "]: " + mensagem;
+            if (mensagem.startsWith("---")) mensagemFormatada = mensagem;
+
+            salvarLogDaSala(salaAtual, mensagemFormatada);
+
+            for (PrintWriter clienteOut : Servidor.salas.get(salaAtual)) {
+                if (clienteOut != out) {
+                    clienteOut.println(mensagemFormatada);
+                }
+            }
+        } else {
+            out.println("Servidor: Tem de entrar numa sala primeiro. Use /join #sala");
+        }
+    }
+
+    private void salvarLogDaSala(String sala, String texto) {
+        try {
+            String nomeArquivo = "sala_" + sala.replace("#", "") + ".txt";
+            FileWriter fw = new FileWriter(nomeArquivo, true);
+            PrintWriter writer = new PrintWriter(fw);
+            writer.println(texto);
+            writer.close();
+        } catch (IOException e) {
+            System.out.println("Erro ao salvar log: " + e.getMessage());
+        }
+    }
+}

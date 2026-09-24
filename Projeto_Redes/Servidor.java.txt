@@ -1,0 +1,53 @@
+import java.net.*;
+import java.io.*;
+import java.util.concurrent.*;
+import java.util.*;
+
+public class Servidor {
+
+    public static ConcurrentHashMap<String, Set<PrintWriter>> salas = new ConcurrentHashMap<>();
+    public static ConcurrentHashMap<String, PrintWriter> usuarios = new ConcurrentHashMap<>();
+
+    public static void main(String[] args) {
+        Scanner teclado = new Scanner(System.in);
+
+        System.out.println("=========================================");
+        System.out.println("         PAINEL DE ADMINISTRACAO         ");
+        System.out.println("=========================================");
+
+        String ip = "127.0.0.1";
+        try (DatagramSocket socket = new DatagramSocket()) {
+            socket.connect(InetAddress.getByName("8.8.8.8"), 10002);
+            ip = socket.getLocalAddress().getHostAddress();
+        } catch (Exception e) {
+            try {
+                ip = InetAddress.getLocalHost().getHostAddress();
+            } catch (Exception ex) {}
+        }
+
+        System.out.println("➤ IP detectado automaticamente: " + ip);
+        System.out.print("➤ Digite a porta para iniciar (ex: 5000): ");
+        int porta = Integer.parseInt(teclado.nextLine());
+
+        try {
+            ServerSocket serverSocket = new ServerSocket(porta, 50, InetAddress.getByName(ip));
+
+            System.out.println("\n=========================================");
+            System.out.println(" [✔] SERVIDOR ONLINE E PRONTO");
+            System.out.println(" [Endereco] " + ip + ":" + porta);
+            System.out.println("=========================================\n");
+            System.out.println("Monitorando trafego de rede...\n");
+
+            while (true) {
+                Socket socketCliente = serverSocket.accept();
+                System.out.println("[+] Nova conexao recebida -> IP: " + socketCliente.getInetAddress().getHostAddress());
+
+                ClienteHandler atendente = new ClienteHandler(socketCliente);
+                Thread threadDoCliente = new Thread(atendente);
+                threadDoCliente.start();
+            }
+        } catch (IOException e) {
+            System.out.println("\n[!] Erro critico no servidor: " + e.getMessage());
+        }
+    }
+}
